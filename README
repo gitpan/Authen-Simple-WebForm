@@ -3,7 +3,7 @@ NAME
     based forms.
 
 VERSION
-    Version 0.01
+    Version 0.02
 
 SYNOPSIS
         use Authen::Simple::WebForm;
@@ -49,6 +49,10 @@ DESCRIPTION
     uesrname_field
     password_field
     extra_fields
+
+    Also helpful may be the "trace" option, which may help you to configure
+    your settings. It will print out the response code, cookies, and the
+    resulting page to STDERR.
 
 INSTALLATION
     To install this module, run the following commands:
@@ -104,6 +108,14 @@ METHODS
 
         Defaults to enabled (1).
 
+    initial_request_method
+        This can be either "GET" or "POST".
+
+        How the initial url will be sent to the server, either via HTTP GET
+        request, or HTTP POST.
+
+        Defaults to "GET".
+
     login_url
         REQUIRED
 
@@ -151,6 +163,14 @@ METHODS
         login page. Otherwise, it must match HTTP::Status->is_success.
 
         Defaults to enabled (1).
+
+    login_request_method
+        This can be either "GET" or "POST".
+
+        How the initial url will be sent to the server, either via HTTP GET
+        request, or HTTP POST.
+
+        Defaults to "POST".
 
     username_prefix
         Username prefix string.
@@ -222,14 +242,6 @@ METHODS
 
         Defaults to "Authen::Simple::WebForm/$VERSION".
 
-    lwp_request_method
-        This can be either "GET" or "POST".
-
-        How the URL's will be sent to the server, either via HTTP GET
-        requests, or HTTP POST.
-
-        Defaults to "POST".
-
     lwp_timeout
         Timeout in seconds. Set to zero to disable.
 
@@ -263,12 +275,25 @@ METHODS
 
         See LWP option requests_redirectable for details. This affects the
         responses we get from the server. For example, if you are posting
-        form data (lwp_request_method == POST), and the successful login
+        form data (login_request_method == POST), and the successful login
         page returns a redirect to some other page, "POST" would be needed
         here. We allow GET and POST by default, so you only need to set this
         is if do not want this behavior.
 
         Defaults to ["GET", "POST"]
+
+    trace
+        Boolean, set to 1 to enable.
+
+        If set to true, the data we recieve will be dumped out to STDERR.
+        This can be useful while you're trying to determine what fields need
+        passed, and what might be going wrong. When running your test
+        scripts, assuming your are starting from a test script, simply dump
+        STDERR to a file:
+
+            perl test.pl 2>somefile.txt
+
+        Defaults to disabled (0).
 
   log
     Any object that supports "debug", "info", "error" and "warn".
@@ -286,6 +311,11 @@ METHODS
 
 TODO
     Add lwp_cookie_jar option(s) so that it may use a file.
+
+    Add a debug mode. It's often difficult to determine what content is
+    being returned, and what to look for. The debug mode should print each
+    step out to STDERR, and include the relevant response information from
+    the page.
 
     Write tests using HTTP::Daemon as a local webserver. See LWP test
     t/local/http.t and t/local/chunked.t for example.
@@ -327,6 +357,9 @@ SEE ALSO
     Authen::Simple
 
     Authen::Simple::OWA2003
+
+    examples/ex1.pl (an example that can be used to auth against
+    freshmeat.net).
 
     LWP
 

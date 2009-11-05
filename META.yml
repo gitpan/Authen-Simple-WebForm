@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Authen-Simple-WebForm
-version:             0.01
+version:             0.02
 abstract:            Simple authentication against existing web based forms.
 license:             ~
 author:              

@@ -15,11 +15,11 @@ Authen::Simple::WebForm - Simple authentication against existing web based forms
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 __PACKAGE__->options({
     initial_url => {
@@ -44,6 +44,11 @@ __PACKAGE__->options({
         default     => 1,
         optional    => 1,
     },
+    initial_request_method => {
+        type        => Params::Validate::SCALAR,
+        default     => 'GET',
+        optional    => 1,
+    },
     login_url => {
         type        => Params::Validate::SCALAR,
         default     => '',
@@ -66,6 +71,11 @@ __PACKAGE__->options({
         default     => 1,
         optional    => 1,
     },
+    login_request_method => {
+        type        => Params::Validate::SCALAR,
+        default     => 'POST',
+        optional    => 1,
+    },
     # for "domain\" if needed
     username_prefix => {
         type        => Params::Validate::SCALAR,
@@ -85,11 +95,6 @@ __PACKAGE__->options({
     lwp_user_agent => {
         type        => Params::Validate::SCALAR,
         default     => 'Authen::Simple::WebForm/'.$VERSION,
-        optional    => 1,
-    },
-    lwp_request_method => {
-        type        => Params::Validate::SCALAR,
-        default     => 'POST',
         optional    => 1,
     },
     lwp_timeout     => {
@@ -124,6 +129,11 @@ __PACKAGE__->options({
     extra_headers => {
         type        => Params::Validate::ARRAYREF,
         default     => [],
+        optional    => 1,
+    },
+    trace => {
+        type        => Params::Validate::BOOLEAN,
+        default     => 0,
         optional    => 1,
     },
 });
@@ -181,6 +191,11 @@ There are a log of options, but they all have sane defaults. In most cases, you'
 =item extra_fields
 
 =back
+
+
+Also helpful may be the "trace" option, which may help you to configure
+your settings. It will print out the response code, cookies, and the resulting
+page to STDERR.
 
 
 =head1 INSTALLATION
@@ -245,6 +260,15 @@ Set to undef to skip checking the response status code from the initial page. Ot
 Defaults to enabled (1).
 
 
+=item initial_request_method
+
+This can be either "GET" or "POST".
+
+How the initial url will be sent to the server, either via HTTP GET request, or HTTP POST.
+
+Defaults to "GET".
+
+
 =item login_url
 
 REQUIRED
@@ -289,6 +313,15 @@ Boolean, set to 0 to disable.
 Set to undef to skip checking the response status code from the login page. Otherwise, it must match HTTP::Status->is_success.
 
 Defaults to enabled (1).
+
+
+=item login_request_method
+
+This can be either "GET" or "POST".
+
+How the initial url will be sent to the server, either via HTTP GET request, or HTTP POST.
+
+Defaults to "POST".
 
 
 =item username_prefix
@@ -369,15 +402,6 @@ Example:
 Defaults to "Authen::Simple::WebForm/$VERSION".
 
 
-=item lwp_request_method
-
-This can be either "GET" or "POST".
-
-How the URL's will be sent to the server, either via HTTP GET requests, or HTTP POST.
-
-Defaults to "POST".
-
-
 =item lwp_timeout
 
 Timeout in seconds. Set to zero to disable.
@@ -414,12 +438,26 @@ Array reference of request names for which we will automatically redirect.
 
 See L<LWP> option requests_redirectable for details. This affects the responses
 we get from the server. For example, if you are posting form data
-(lwp_request_method == POST), and the successful login page returns a redirect
+(login_request_method == POST), and the successful login page returns a redirect
 to some other page, "POST" would be needed here. We allow GET and POST by
 default, so you only need to set this is if do not want this behavior.
 
 Defaults to ["GET", "POST"]
 
+
+=item trace
+
+Boolean, set to 1 to enable.
+
+If set to true, the data we recieve will be dumped out to STDERR.
+This can be useful while you're trying to determine what fields need
+passed, and what might be going wrong. When running your test scripts,
+assuming your are starting from a test script, simply dump STDERR
+to a file:
+
+    perl test.pl 2>somefile.txt
+
+Defaults to disabled (0).
 
 
 =back
@@ -445,6 +483,7 @@ Internal method used to do the actual authentication check.
 
 =cut
 
+
 sub check
 {
     my ($self, $username, $password) = @_;
@@ -467,9 +506,14 @@ sub check
     }
 
     # determine request method
-    my $req_method = uc($self->lwp_request_method || 'POST');
-    unless ($req_method =~ /^(GET|POST)$/i) {
-        $self->log->error("Invalid lwp_request_method.") if $self->log;
+    my $initial_req_method = uc($self->initial_request_method || 'GET');
+    unless ($initial_req_method =~ /^(GET|POST)$/i) {
+        $self->log->error("Invalid initial_request_method.") if $self->log;
+        return 0;
+    }
+    my $login_req_method = uc($self->login_request_method || 'GET');
+    unless ($login_req_method =~ /^(GET|POST)$/i) {
+        $self->log->error("Invalid login_request_method.") if $self->log;
         return 0;
     }
 
@@ -489,8 +533,17 @@ sub check
     # get an inital page?
     if ($self->initial_url)
     {
-        my $res = ($req_method eq 'GET') ? $ua->get($self->initial_url, @headers):
-                                           $ua->post($self->initial_url, @headers);
+        my $res = ($initial_req_method eq 'GET') ? $ua->get($self->initial_url, @headers):
+                                                   $ua->post($self->initial_url, @headers);
+        if ($self->trace)
+        {
+            print STDERR ("-"x80)."\n";
+            print STDERR "TRACE: initial response, response code [".$res->code."]\n";
+            print STDERR "TRACE: initial response, cookies [".$ua->cookie_jar->as_string()."]\n";
+            print STDERR $res->decoded_content;
+            print STDERR "\n\n\n";
+            print STDERR ("-"x80)."\n";
+        }
         # make sure status code is ok?
         if ($self->check_initial_status_code)
         {
@@ -563,7 +616,7 @@ sub check
 
     # attempt to login
     my $res;
-    if ($req_method eq 'GET')
+    if ($login_req_method eq 'GET')
     {
         my $url = URI->new($self->login_url);
         unless ($url) {
@@ -574,6 +627,15 @@ sub check
         $res = $ua->get($url, @headers);
     } else { # POST
         $res = $ua->post($self->login_url, \@data, @headers);
+    }
+    if ($self->trace)
+    {
+        print STDERR ("-"x80)."\n";
+        print STDERR "TRACE: initial response, response code [".$res->code."]\n";
+        print STDERR "TRACE: initial response, cookies [".$ua->cookie_jar->as_string()."]\n";
+        print STDERR $res->decoded_content;
+        print STDERR "\n\n\n";
+        print STDERR ("-"x80)."\n";
     }
 
     # make sure status code is ok?
@@ -641,6 +703,8 @@ sub check
 
 Add lwp_cookie_jar option(s) so that it may use a file.
 
+Add a debug mode. It's often difficult to determine what content is being returned, and what to look for. The debug mode should print each step out to STDERR, and include the relevant response information from the page.
+
 Write tests using HTTP::Daemon as a local webserver. See LWP test t/local/http.t and t/local/chunked.t for example.
 
 =head1 AUTHOR
@@ -691,6 +755,8 @@ L<http://search.cpan.org/dist/Authen-Simple-WebForm>
 L<Authen::Simple>
 
 L<Authen::Simple::OWA2003>
+
+examples/ex1.pl (an example that can be used to auth against freshmeat.net).
 
 L<LWP>
 

@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
-# TODO:
-#   make this login to something like gmail
+# Demo to auth against freshmeat.net
 
 use strict;
 use Authen::Simple::WebForm;
@@ -12,15 +11,17 @@ my $log = Authen::Simple::Log->new();
 
 my $webform = Authen::Simple::WebForm->new(
     'log'               => $log,
-    initial_url         => 'http://host.company.com',
-    check_initial_status_code => 0,
-    login_url           => 'http://host.company.com/auth/LOGIN',
-#   login_expect        => 'Employee Identification Number',
-#   login_expect        => qr/Employee Identification Number/,
-    login_expect_cookie => 'COMPANYSession',
-    username_field      => 'credential_0',
-    password_field      => 'credential_1',
-    extra_fields        => [ 'destination' => '/cgi-bin/siteIndex.pl' ],
+    initial_url         => 'http://freshmeat.net/session/new?return_to=/',
+    login_url           => 'http://freshmeat.net/session',
+    login_expect        => 'href="/logout"',
+    login_expect_cookie => 'user_credentials',
+    username_field      => 'user_session[login]',
+    password_field      => 'user_session[password]',
+    extra_fields        => [
+        'commit' => 'Log in!',
+        'user_session[remember_me]' => 0,
+        'user_session[openid_identifier]'   => '',
+        ],
 );
 
 print "USER: ";
